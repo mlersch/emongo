@@ -660,8 +660,7 @@ handle_call(pools, _From, State) ->
 
 handle_call(oid, _From, State) ->
   % This could be done on a per-connection basis as well, if performance is an issue.
-  {MegaSecs, Secs, _} = now(),
-  UnixTime = MegaSecs * 1000000 + Secs,
+  UnixTime = erlang:system_time(seconds),
   <<_:20/binary,PID:2/binary,_/binary>> = term_to_binary(self()),
   Index = State#state.oid_index rem 16#ffffff,
   {reply, <<UnixTime:32/signed, (State#state.hashed_hostn)/binary, PID/binary,
