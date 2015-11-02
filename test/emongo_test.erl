@@ -220,5 +220,4 @@ ensure_started(App) ->
   end.
 
 cur_time_ms() ->
-  {MegaSec, Sec, MicroSec} = erlang:now(),
-  MegaSec * 1000000000 + Sec * 1000 + erlang:round(MicroSec / 1000).
+  erlang:system_time(seconds).
