@@ -84,7 +84,10 @@ pools() ->
   gen_server:call(?MODULE, pools, infinity).
 
 oid() ->
-  gen_server:call(?MODULE, oid, infinity).
+  {OidIndex, HashedHN, Pid} = gen_server:call(?MODULE, oid_info, infinity),
+  UnixTime = cur_time_ms(),
+  <<_:20/binary, PidPart:2/binary, _/binary>> = term_to_binary(Pid),
+  <<UnixTime:32/signed, HashedHN/binary, PidPart/binary, OidIndex:24>>.
 
 oid_generation_time({oid, Oid}) ->
   oid_generation_time(Oid);
@@ -658,14 +661,8 @@ init(_) ->
 handle_call(pools, _From, State) ->
   {reply, State#state.pools, State};
 
-handle_call(oid, _From, State) ->
-  % This could be done on a per-connection basis as well, if performance is an issue.
-  {MegaSecs, Secs, _} = now(),
-  UnixTime = MegaSecs * 1000000 + Secs,
-  <<_:20/binary,PID:2/binary,_/binary>> = term_to_binary(self()),
-  Index = State#state.oid_index rem 16#ffffff,
-  {reply, <<UnixTime:32/signed, (State#state.hashed_hostn)/binary, PID/binary,
-            Index:24>>, State#state{oid_index = State#state.oid_index + 1}};
+handle_call(oid_info, _From, #state{oid_index = OidIndex, hashed_hostn = HashedHN} = State) ->
+  {reply, {OidIndex rem 16#ffffff, HashedHN, self()}, State#state{oid_index = OidIndex + 1}};
 
 handle_call({add_pool, NewPool = #pool{id = PoolId}}, _From, #state{pools = Pools} = State) ->
   {Result, Pools1} =
@@ -1164,6 +1161,12 @@ to_list(undefined)           -> undefined;
 to_list(V) when is_list(V)   -> V;
 to_list(V) when is_binary(V) -> binary_to_list(V);
 to_list(V) when is_atom(V)   -> atom_to_list(V).
+
+cur_time_ms() ->
+  % TODO: With Erlang ver 18.1, this function will service nicely:
+  %os:system_time(milli_seconds).
+  {MegaSec, Sec, MicroSec} = os:timestamp(),
+  MegaSec * 1000000000 + Sec * 1000 + erlang:round(MicroSec / 1000).
 
 convert_fields([])                    -> [];
 convert_fields([{Field, Val} | Rest]) -> [{Field, Val} | convert_fields(Rest)];
